@@ -1,0 +1,46 @@
+services:
+  # ── SSH Honeypot ──────────────────────────────────────────────────────────
+  cowrie:
+    image: cowrie/cowrie:latest
+    restart: unless-stopped
+    ports:
+      - "2222:2222"
+    volumes:
+      - ./data:/cowrie/cowrie-git/var/lib/cowrie:Z
+      - ./logs:/cowrie/cowrie-git/var/log/cowrie:z
+    environment:
+      - COWRIE_HOSTNAME=srv01
+    networks:
+      - honeypot-net
+
+  # ── Web Dashboard ─────────────────────────────────────────────────────────
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    volumes:
+      - ./logs:/logs:ro,z        # Lee los logs de cowrie (solo lectura)
+    environment:
+      - LOGS_DIR=/logs
+    networks:
+      - honeypot-net
+    depends_on:
+      - cowrie
+
+  # ── Nginx SSL Reverse Proxy ───────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+      - ./nginx/ssl:/etc/nginx/ssl:ro,Z
+    networks:
+      - honeypot-net
+    depends_on:
+      - dashboard
+
+networks:
+  honeypot-net:
+    driver: bridge

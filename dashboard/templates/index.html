@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HoneyShell — SSH Honeypot Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg2: #0f1318;
+      --bg3: #161b24;
+      --card: rgba(22, 27, 36, 0.85);
+      --border: rgba(255,255,255,0.07);
+      --accent: #f97316;
+      --accent2: #fb923c;
+      --red: #ef4444;
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --muted2: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* BACKGROUND GRID */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(249,115,22,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(249,115,22,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* GLOW BLOBS */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-1 { width: 600px; height: 600px; background: var(--accent); top: -200px; right: -150px; }
+    .blob-2 { width: 500px; height: 500px; background: var(--purple); bottom: -200px; left: -100px; }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+    }
+
+    /* HEADER */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 0 32px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .logo h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .logo span {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 400;
+      display: block;
+      -webkit-text-fill-color: var(--muted);
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: var(--green);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    .last-update {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* STATS GRID */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 500px) { .stats-grid { grid-template-columns: 1fr; } }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(20px);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(249,115,22,0.2);
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(249,115,22,0.04), transparent);
+      pointer-events: none;
+    }
+    .stat-icon {
+      font-size: 28px;
+      margin-bottom: 14px;
+    }
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted2);
+      font-weight: 400;
+    }
+    .stat-card.orange .stat-value { color: var(--accent); }
+    .stat-card.red .stat-value { color: var(--red); }
+    .stat-card.green .stat-value { color: var(--green); }
+    .stat-card.purple .stat-value { color: var(--purple); }
+
+    /* MAIN GRID */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* TOP 10 GRIDS */
+    .tops-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 0;
+    }
+    @media (max-width: 900px) { .tops-grid { grid-template-columns: 1fr; } }
+
+    /* CARD */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-badge {
+      font-size: 11px;
+      background: rgba(249,115,22,0.15);
+      color: var(--accent);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    /* SESSIONS TABLE */
+    .sessions-table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      padding: 12px 16px;
+      text-align: left;
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(249,115,22,0.05); }
+    td {
+      padding: 13px 16px;
+      vertical-align: middle;
+      color: var(--muted2);
+    }
+    td.ip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--blue);
+    }
+    td.cred {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge.success { background: rgba(34,197,94,0.12); color: var(--green); }
+    .badge.failed { background: rgba(239,68,68,0.12); color: var(--red); }
+    .badge.cmds {
+      background: rgba(168,85,247,0.12);
+      color: var(--purple);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .empty-state {
+      padding: 60px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .empty-state .emoji { font-size: 40px; display: block; margin-bottom: 12px; }
+
+    /* TOP LIST */
+    .top-list { padding: 8px 0; }
+    .top-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .top-item:last-child { border-bottom: none; }
+    .top-item:hover { background: rgba(255,255,255,0.03); }
+    .top-rank {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .top-rank.gold { background: rgba(234,179,8,0.15); color: #eab308; }
+    .top-rank.silver { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .top-rank.bronze { background: rgba(180,83,9,0.15); color: #b45309; }
+    .top-value {
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .top-bar-wrap {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .top-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .top-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+      min-width: 28px;
+      text-align: right;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+    .modal-overlay.open {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 760px;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.95) translateY(20px);
+      transition: transform 0.2s;
+    }
+    .modal-overlay.open .modal {
+      transform: scale(1) translateY(0);
+    }
+    .modal-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+      border: none;
+      color: var(--muted2);
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.1); }
+    .modal-body {
+      overflow-y: auto;
+      padding: 24px 28px;
+      flex: 1;
+    }
+    .modal-meta {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .meta-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .meta-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .meta-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .commands-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted2);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .command-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 14px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+    .cmd-prompt { color: var(--green); flex-shrink: 0; }
+    .cmd-text { color: var(--text); flex: 1; word-break: break-all; }
+    .cmd-time { color: var(--muted); font-size: 10px; flex-shrink: 0; margin-top: 2px; }
+    .no-commands {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 30px;
+    }
+
+    /* LOADING */
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(249,115,22,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 40px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">🍯</div>
+        <div>
+          <h1>HoneyShell</h1>
+          <span>SSH Honeypot Dashboard</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="live-badge">
+          <div class="live-dot"></div>
+          LIVE
+        </div>
+        <div class="last-update" id="last-update">Cargando...</div>
+      </div>
+    </header>
+
+    <!-- STATS -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card orange">
+        <div class="stat-icon">🔗</div>
+        <div class="stat-value" id="stat-sessions">—</div>
+        <div class="stat-label">Sesiones totales</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-icon">🌐</div>
+        <div class="stat-value" id="stat-ips">—</div>
+        <div class="stat-label">IPs únicas</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" id="stat-logins">—</div>
+        <div class="stat-label">Logins exitosos</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-icon">⌨️</div>
+        <div class="stat-value" id="stat-commands">—</div>
+        <div class="stat-label">Comandos capturados</div>
+      </div>
+    </div>
+
+    <!-- SESSIONS TABLE -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-header">
+        <div class="card-title">🔒 Sesiones SSH</div>
+        <span class="card-badge" id="sessions-count">0 sesiones</span>
+      </div>
+      <div class="sessions-table-wrap">
+        <table id="sessions-table">
+          <thead>
+            <tr>
+              <th>IP Origen</th>
+              <th>Usuario</th>
+              <th>Contraseña</th>
+              <th>Inicio</th>
+              <th>Duración</th>
+              <th>Estado</th>
+              <th>Comandos</th>
+            </tr>
+          </thead>
+          <tbody id="sessions-tbody">
+            <tr><td colspan="7"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TOP LISTS -->
+    <div class="tops-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">👤 Top Usuarios</div>
+        </div>
+        <div class="top-list" id="top-users"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔑 Top Contraseñas</div>
+        </div>
+        <div class="top-list" id="top-passwords"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🌐 Top IPs</div>
+        </div>
+        <div class="top-list" id="top-ips"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SESSION DETAIL MODAL -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">📋 Detalle de Sesión</div>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const overlay = document.getElementById('modal-overlay');
+    const modalBody = document.getElementById('modal-body');
+    document.getElementById('modal-close').onclick = () => overlay.classList.remove('open');
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
+
+    function rankClass(i) {
+      if (i === 0) return 'gold';
+      if (i === 1) return 'silver';
+      if (i === 2) return 'bronze';
+      return '';
+    }
+
+    function fmt(ts) {
+      if (!ts) return '—';
+      try {
+        const d = new Date(ts);
+        return d.toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+      } catch { return ts; }
+    }
+
+    function fmtDuration(s) {
+      if (!s) return '< 1s';
+      if (s < 60) return `${s}s`;
+      if (s < 3600) return `${Math.floor(s/60)}m ${s%60}s`;
+      return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+    }
+
+    function fmtTime(ts) {
+      if (!ts) return '';
+      try {
+        const d = new Date(ts);
+        return d.toLocaleTimeString('es-ES');
+      } catch { return ts; }
+    }
+
+    function renderTopList(containerId, items) {
+      const el = document.getElementById(containerId);
+      if (!items || items.length === 0) {
+        el.innerHTML = '<div class="no-commands">Sin datos aún</div>';
+        return;
+      }
+      const max = items[0].count || 1;
+      el.innerHTML = items.map((item, i) => `
+        <div class="top-item">
+          <div class="top-rank ${rankClass(i)}">${i + 1}</div>
+          <div class="top-value" title="${item.value}">${item.value || '(vacío)'}</div>
+          <div class="top-bar-wrap"><div class="top-bar" style="width:${Math.round(item.count/max*100)}%"></div></div>
+          <div class="top-count">${item.count}</div>
+        </div>`).join('');
+    }
+
+    async function loadStats() {
+      try {
+        const r = await fetch('/api/stats');
+        const s = await r.json();
+        document.getElementById('stat-sessions').textContent = s.total_sessions;
+        document.getElementById('stat-ips').textContent = s.unique_ips;
+        document.getElementById('stat-logins').textContent = s.successful_logins;
+        document.getElementById('stat-commands').textContent = s.total_commands;
+        renderTopList('top-users', s.top_usernames);
+        renderTopList('top-passwords', s.top_passwords);
+        renderTopList('top-ips', s.top_ips);
+      } catch (e) {
+        console.error('Error loading stats', e);
+      }
+    }
+
+    async function loadSessions() {
+      try {
+        const r = await fetch('/api/sessions');
+        const sessions = await r.json();
+        document.getElementById('sessions-count').textContent = `${sessions.length} sesiones`;
+        const tbody = document.getElementById('sessions-tbody');
+        if (sessions.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><span class="emoji">🕵️</span>Esperando atacantes... El honeypot está activo en puerto 2222.</div></td></tr>`;
+          return;
+        }
+        tbody.innerHTML = sessions.map(s => `
+          <tr onclick="openSession('${s.id}')">
+            <td class="ip">${s.src_ip}</td>
+            <td class="cred">${s.username || '—'}</td>
+            <td class="cred">${s.password || '—'}</td>
+            <td>${fmt(s.start_time)}</td>
+            <td>${fmtDuration(s.duration)}</td>
+            <td><span class="badge ${s.login_success ? 'success' : 'failed'}">${s.login_success ? '✓ Login' : '✗ Intento'}</span></td>
+            <td><span class="badge cmds">${s.num_commands} cmds</span></td>
+          </tr>`).join('');
+      } catch (e) {
+        document.getElementById('sessions-tbody').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:40px;">Error cargando sesiones</td></tr>`;
+      }
+    }
+
+    async function openSession(id) {
+      overlay.classList.add('open');
+      modalBody.innerHTML = '<div class="spinner"></div>';
+      try {
+        const r = await fetch(`/api/sessions/${id}`);
+        const s = await r.json();
+        const cmds = s.commands || [];
+        modalBody.innerHTML = `
+          <div class="modal-meta">
+            <div class="meta-item"><div class="meta-label">IP Origen</div><div class="meta-value">${s.src_ip}</div></div>
+            <div class="meta-item"><div class="meta-label">Usuario</div><div class="meta-value" style="color:var(--accent)">${s.username || '—'}</div></div>
+            <div class="meta-item"><div class="meta-label">Contraseña</div><div class="meta-value" style="color:var(--accent)">${s.password || '—'}</div></div>
+            <div class="meta-item"><div class="meta-label">Inicio</div><div class="meta-value">${fmt(s.start_time)}</div></div>
+            <div class="meta-item"><div class="meta-label">Duración</div><div class="meta-value">${fmtDuration(s.duration)}</div></div>
+            <div class="meta-item"><div class="meta-label">Estado</div><div class="meta-value" style="color:${s.login_success ? 'var(--green)' : 'var(--red)'}">${s.login_success ? 'Login exitoso' : 'Login fallido'}</div></div>
+          </div>
+          <div class="commands-title">⌨️ Comandos ejecutados (${cmds.length})</div>
+          ${cmds.length === 0
+            ? '<div class="no-commands">Sin comandos registrados en esta sesión</div>'
+            : cmds.map(c => `
+                <div class="command-line">
+                  <span class="cmd-prompt">$</span>
+                  <span class="cmd-text">${c.command}</span>
+                  <span class="cmd-time">${fmtTime(c.time)}</span>
+                </div>`).join('')}
+          ${s.files_downloaded && s.files_downloaded.length > 0 ? `
+            <div class="commands-title" style="margin-top:20px">📥 Archivos descargados (${s.files_downloaded.length})</div>
+            ${s.files_downloaded.map(f => `
+              <div class="command-line">
+                <span class="cmd-prompt">↓</span>
+                <span class="cmd-text">${f.url}</span>
+                <span class="cmd-time">${fmtTime(f.time)}</span>
+              </div>`).join('')}` : ''}`;
+      } catch (e) {
+        modalBody.innerHTML = '<div class="no-commands">Error cargando detalle de sesión</div>';
+      }
+    }
+
+    async function refresh() {
+      await Promise.all([loadStats(), loadSessions()]);
+      document.getElementById('last-update').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-ES');
+    }
+
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>
